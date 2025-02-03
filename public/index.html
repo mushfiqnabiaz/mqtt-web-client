@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MQTT Client</title>
+    <script src="https://cdn.socket.io/4.3.2/socket.io.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css" rel="stylesheet">
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <style>
+        /* Global Reset */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f7f9fc;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            margin: 20px;
+        }
+
+        h1 {
+            font-size: 32px;
+            text-align: center;
+            color: #4CAF50;
+            margin-bottom: 30px;
+        }
+
+        h3 {
+            font-size: 24px;
+            color: #4CAF50;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            font-size: 16px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            background-color: #f4f6f9;
+            transition: 0.3s ease;
+        }
+
+        input:focus, select:focus, button:focus {
+            border-color: #4CAF50;
+            outline: none;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .message-table-container {
+            margin-top: 30px;
+            background-color: #fafafa;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .message-table-container table {
+            width: 100%;
+            margin-top: 20px;
+            border-radius: 8px;
+        }
+
+        .message-table-container h3 {
+            margin-bottom: 20px;
+            font-size: 22px;
+        }
+
+        .footer {
+            text-align: center;
+            font-size: 14px;
+            color: #888;
+            margin-top: 40px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 28px;
+            }
+
+            h3 {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>MQTT Client</h1>
+
+    <!-- Step 1: Client Creation and Connection Form -->
+    <div id="clientForm">
+        <input type="text" id="clientId" placeholder="Enter Client ID" required />
+        <input type="text" id="broker" placeholder="Broker (Host or Domain)" value="mqtt.aqualinkbd.com" required />
+        <select id="protocol" required>
+            <option value="mqtt">MQTT</option>
+            <option value="mqtts">MQTTS (Secure)</option>
+            <option value="ws">WS (WebSocket)</option>
+            <option value="wss">WSS (Secure WebSocket)</option>
+        </select>
+        <input type="number" id="port" placeholder="Port" value="1883" required />
+        <input type="text" id="username" placeholder="Username" value="shahed" required />
+        <input type="password" id="password" placeholder="Password" value="Aqualink_321" required />
+        <button id="connectBtn">Connect</button>
+    </div>
+
+    <!-- Step 2: After Connection: Message Send/Receive and Data Table -->
+    <div id="messageSection" style="display: none;">
+        <h3>Connect to MQTT Broker</h3>
+        <div id="connectionDetails" style="margin-bottom: 20px; text-align: center; font-weight: bold; color: #4CAF50;"></div>
+
+        <input type="text" id="topic" placeholder="Topic to Subscribe" required />
+        <button id="subscribeBtn">Subscribe</button>
+        <div id="subscriptionStatus" style="color: #4CAF50; font-weight: bold; text-align: center; margin-top: 10px;"></div>
+
+        <div class="message-table-container">
+            <h3>Message History</h3>
+            <table id="messageTable" class="display">
+                <thead>
+                <tr>
+                    <th>Direction</th>
+                    <th>Topic</th>
+                    <th>Message</th>
+                    <th>Timestamp</th>
+                </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div style="margin-top: 20px; text-align: center;">
+            <input type="text" id="sendMessage" placeholder="Enter message to send" style="width: 75%;" />
+            <button id="sendBtn" style="width: 20%;" disabled>Send</button> <!-- Disabled by default -->
+        </div>
+
+        <!-- Clear History Button -->
+        <div style="margin-top: 20px; text-align: center;">
+            <button id="clearHistoryBtn" style="background-color: #f44336;">Clear History</button>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>&copy; 2025 MQTT Multi-Client. All Rights Reserved.</p>
+    </div>
+</div>
+
+<script>
+    const socket = io();
+    let clientId = '';
+    let topic = '';
+    let protocol = 'mqtt'; // Default protocol
+
+    // Event listener for connecting client
+    $('#connectBtn').on('click', function() {
+        clientId = $('#clientId').val();
+        const broker = $('#broker').val();
+        const port = $('#port').val();
+        const username = $('#username').val();
+        const password = $('#password').val();
+        protocol = $('#protocol').val(); // Get selected protocol
+
+        // Show connection details
+        $('#connectionDetails').text(`Connected to ${broker}:${port} using ${protocol.toUpperCase()} protocol`);
+
+        // Send request to create client and subscribe to the topic
+        $.ajax({
+            url: '/create-client',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                clientId, broker, port, username, password, protocol
+            }),
+            success: function(response) {
+                $('#clientForm').hide();
+                $('#messageSection').show();
+            }
+        });
+    });
+
+    // Event listener for subscribing to a topic
+    $('#subscribeBtn').on('click', function() {
+        topic = $('#topic').val();
+
+        $.ajax({
+            url: '/subscribe',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ clientId, topic }),
+            success: function(response) {
+                console.log("Subscribed to topic:", topic);
+                $('#subscriptionStatus').text(`Successfully subscribed to topic: ${topic}`);
+                $('#sendBtn').prop('disabled', false); // Enable Send button after subscribing
+            },
+            error: function(error) {
+                $('#subscriptionStatus').text(`Failed to subscribe to topic: ${topic}`).css('color', 'red');
+            }
+        });
+    });
+
+    // Event listener for sending messages
+    $('#sendBtn').on('click', function() {
+        const message = $('#sendMessage').val();
+        if (message) {
+            // Disable the send button to prevent double click
+            $('#sendBtn').prop('disabled', true);
+
+            $.ajax({
+                url: '/send-message',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ clientId, topic, message }),
+                success: function(response) {
+                    // Add the sent message to the table
+                    const table = $('#messageTable').DataTable();
+                    table.row.add([
+                        'Sent', topic, message, new Date().toLocaleString()
+                    ]).draw();
+
+                    // Re-enable the Send button after successful message sending
+                    $('#sendBtn').prop('disabled', false);
+                },
+                error: function(error) {
+                    alert("Error sending message");
+
+                    // Re-enable the Send button in case of error
+                    $('#sendBtn').prop('disabled', false);
+                }
+            });
+        }
+    });
+
+    // Listen for incoming messages
+    socket.on('mqtt_message', function(data) {
+        const table = $('#messageTable').DataTable();
+        table.row.add([
+            data.direction === 'sent' ? 'Sent' : 'Received',
+            data.topic,
+            data.message,
+            new Date().toLocaleString()
+        ]).draw();
+    });
+
+    // Clear message history
+    $('#clearHistoryBtn').on('click', function() {
+        if (confirm("Are you sure you want to clear the message history?")) {
+            // Clear the table locally
+            const table = $('#messageTable').DataTable();
+            table.clear().draw();
+
+            // Clear history from the database
+            $.ajax({
+                url: '/clear-history',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ clientId }),
+                success: function(response) {
+                    alert("Message history cleared!");
+                },
+                error: function(error) {
+                    alert("Failed to clear history.");
+                }
+            });
+        }
+    });
+
+    $(document).ready(function() {
+        $('#messageTable').DataTable();
+    });
+</script>
+
+</body>
+</html>
