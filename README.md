@@ -23,8 +23,8 @@ Before running this project, make sure you have the following installed:
 1. Clone this repository:
 
     ```bash
-    git clone https://github.com/your-username/mqtt-client-manager.git
-    cd mqtt-client-manager
+    git clone https://github.com/mushfiqnabiaz/mqtt-web-client.git
+    cd mqtt-web-client
     ```
 
 2. Install the required dependencies:
